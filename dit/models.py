@@ -260,7 +260,7 @@ class HunYuanDiT(ModelMixin, ConfigMixin):
     def enable_gradient_checkpointing(self):
         self.gradient_checkpointing = True
     @classmethod
-    def from_pretrained(cls, model_path=None, pretrained=False):
+    def from_pretrained(cls, model_path=None, pretrained=True):
         dit_args = DitConfig()
         model_config = HUNYUAN_DIT_CONFIG[dit_args.model_type]
         latent_size = (dit_args.image_size[0] // 8, dit_args.image_size[1] // 8)
@@ -388,7 +388,7 @@ class HunYuanDiT(ModelMixin, ConfigMixin):
 
         if return_dict:
             return {'x': x}
-        return x
+        return x[:,:4,...]
 
     def initialize_weights(self):
         # Initialize transformer layers:

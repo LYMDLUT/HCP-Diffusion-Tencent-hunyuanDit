@@ -2,8 +2,8 @@ from dataclasses import dataclass
 @dataclass
 class DitConfig:
     model_type = 'DiT-g/2'
-    image_size = [1024, 1024]
-    learn_sigma = None
+    image_size = [720, 720]
+    learn_sigma = True
     text_states_dim = 1024
     text_states_dim_t5 = 2048
     text_len = 77
