@@ -181,7 +181,6 @@ class HunYuanDiT(ModelMixin, ConfigMixin):
             text_len_t5=None,
             norm=None,
             infer_mode=None,
-            use_fp16 = None,
             
     ):
         super().__init__()
@@ -198,7 +197,6 @@ class HunYuanDiT(ModelMixin, ConfigMixin):
         self.text_len = text_len
         self.text_len_t5 = text_len_t5
         self.norm = norm
-        self.use_fp16 = use_fp16
 
         use_flash_attn = infer_mode == 'fa'
         if use_flash_attn:
@@ -260,8 +258,18 @@ class HunYuanDiT(ModelMixin, ConfigMixin):
     def enable_gradient_checkpointing(self):
         self.gradient_checkpointing = True
     @classmethod
-    def from_pretrained(cls, model_path=None, pretrained=True):
-        dit_args = DitConfig()
+    def from_pretrained(cls, 
+                        model_path=None,
+                        pretrained=True,
+                        model_type='DiT-g/2',
+                        image_size=[720, 720],
+                        learn_sigma=True,
+                        infer_mode="torch",
+                        ):
+        dit_args = DitConfig(model_type=model_type,
+                            image_size=image_size,
+                            learn_sigma=learn_sigma,
+                            infer_mode =infer_mode)
         model_config = HUNYUAN_DIT_CONFIG[dit_args.model_type]
         latent_size = (dit_args.image_size[0] // 8, dit_args.image_size[1] // 8)
         model = HunYuanDiT(input_size=latent_size,
@@ -272,11 +280,7 @@ class HunYuanDiT(ModelMixin, ConfigMixin):
                             text_len_t5=dit_args.text_len_t5,
                             norm=dit_args.norm,
                             infer_mode=dit_args.infer_mode,
-                            use_fp16 = dit_args.use_fp16,
                             **model_config)    
-        # Whether to use fp16
-        if dit_args.use_fp16:
-            model = model.half()
         # Load model checkpoint
         if pretrained:
             logger.info(f"Loading model checkpoint {model_path}...")
@@ -352,8 +356,7 @@ class HunYuanDiT(ModelMixin, ConfigMixin):
 
         # Build image meta size tokens
         image_meta_size = timestep_embedding(image_meta_size.view(-1), 256)   # [B * 6, 256]
-        if self.use_fp16:
-            image_meta_size = image_meta_size.half()
+        image_meta_size = image_meta_size.to(x.dtype)
         image_meta_size = image_meta_size.view(-1, 6 * 256)
         extra_vec = torch.cat([extra_vec, image_meta_size], dim=1)  # [B, D + 6 * 256]
 
