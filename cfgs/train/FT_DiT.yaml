@@ -1,0 +1,89 @@
+_base_:
+  - cfgs/train/examples/fine-tuning.yaml
+
+mixed_precision: 'bf16'
+ckpt_type: 'torch' # [torch, safetensors]
+unet:
+  -
+    lr: 1e-4
+    layers:
+      - '' # fine-tuning all layers in unet
+
+train:
+  optimizer:
+    _target_: bitsandbytes.optim.AdamW8bit
+    _partial_: True
+    weight_decay: 0.1
+    betas: [0.9, 0.99]
+  loss:
+    pred_type: velocity
+    target_type: x0
+pretrained_model_name_or_path: /mnt/data1/HunyuanDiT/t2i/
+model:
+  pretrained_model_name_or_path: ${pretrained_model_name_or_path}
+  
+  clip_skip: 0
+  clip_final_norm: True
+  force_cast_precision: False
+
+  noise_scheduler:
+    _target_: hcpdiff.diffusion.sampler.EDM_DDPMSampler
+    sigma_scheduler:
+      _target_: hcpdiff.diffusion.sampler.DDPMContinuousSigmaScheduler
+      linear_start: 0.00085
+      linear_end: 0.03
+
+  vae:
+    _target_: diffusers.models.AutoencoderKL.from_pretrained
+    pretrained_model_name_or_path: ${pretrained_model_name_or_path}
+    subfolder: sdxl-vae-fp16-fix
+
+  tokenizer:
+    _target_: dit.dit_tokenizer.DiTTokenizer.from_pretrained
+    pretrained_model_name_or_path: ${pretrained_model_name_or_path}
+    subfolder1: tokenizer
+    subfolder2: mt5
+
+  wrapper:
+    _target_: dit.dit_wrapper.DITWrapper.build_from_pretrained
+    _partial_: True
+    unet:
+      _target_: dit.models.HunYuanDiT.from_pretrained
+      model_path: !expr ${pretrained_model_name_or_path} + "/pytorch_model_ema.pt"
+      model_type: 'DiT-g/2'
+      image_size: [720, 720]
+      learn_sigma: True
+      infer_mode: "fa" # "fa", "torch", "trt"
+    TE:
+      _target_: dit.dit_textcreate.DiTTextEncoder.from_pretrained
+      pretrained_model_name_or_path: ${pretrained_model_name_or_path}
+      subfolder1: clip_text_encoder
+      subfolder2: mt5
+
+data:
+  dataset1:
+    _target_: hcpdiff.data.CropInfoPairDataset
+    batch_size: 8
+    encoder_attention_mask: True
+    cache_path: /mnt/data1/lym/HunyuanDiT/cache_img_1
+    
+    source:
+      data_source1:
+        img_root: '/mnt/dataset/dzy/surtr_arknights/1_1girl'
+        prompt_template: 'prompt_tuning_template/caption.txt'
+        caption_file: /mnt/dataset/dzy/surtr_arknights/1_1girl
+
+        text_transforms:
+          _target_: torchvision.transforms.Compose
+          transforms:
+            - _target_: hcpdiff.utils.caption_tools.TagShuffle
+            - _target_: hcpdiff.utils.caption_tools.TagErase
+              p: 0.05
+            - _target_: hcpdiff.utils.caption_tools.TemplateFill
+              word_names:
+                pt1: 'surtr (arknights)'
+    bucket:
+      _target_: hcpdiff.data.bucket.RatioBucket.from_files # aspect ratio bucket
+      target_area: ${hcp.eval:"720*720"}
+      num_bucket: 15
+      step_size: 16
