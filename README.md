@@ -8,3 +8,6 @@ fintune：
 <p align="center">
   <img src=./ft.png  height=220>
 </p>
+<p align="center">
+  <img src=./ft2.png  height=220>
+</p>
